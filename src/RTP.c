@@ -22,19 +22,32 @@ void newAudioStream(char *name, uint8_t channels, uint64_t sessionID, uint64_t s
 	struct RTCPstream *newStream = malloc(sizeof(struct RTCPstream));
 	struct audioStreams *streams = &AudioStreams;
 	
-	newStream.timestamp = timeInSamples;
-	newStream.csrc = 1234;
-	newStream.samplesPerPacket = 48;
-	newStream.channelsPerPacket = channels;
-	newStream.name = name;
+	//TODO: Find a better way to set the starting time stamp
+	struct timeval currenttime;
+	uint64_t timeInSamples = ((double)(currenttime.tv_sec+((double)currenttime.tv_usec)/1000000))*sampleRate;
 	
-	newStream.SDPmessage = malloc(sizof(struct SDPmessage));
-	newStream.SDPmessage.sessionId = sessionId;
-	newStream.SDPmessage.sessionVersion = sessionVersion;
-	newStream.SDPmessage.channelStart = 1;
-	newStream.SDPmessage.channelEnd = channels;
-	newStream.SDPmessage.map = map++;
+	newStream->timestamp = timeInSamples;
+	newStream->csrc = 1234;
+	newStream->samplesPerPacket = 48;
+	newStream->channelsPerPacket = channels;
+	newStream->name = name;
+	newStream->offset = 0;
 	
+	newStream->SDP = malloc(sizof(struct SDPmessage));
+	newStream->SDP.sessionId = sessionId;
+	newStream->SDP.sessionVersion = sessionVersion;
+	newStream->SDP.channelStart = 1;
+	newStream->SDP.channelEnd = channels;
+	newStream->SDP.map = map++;
+	
+	newStream->outputBufs = malloc(sizeof(struct OutputStreamBuf)*channels);
+	int i;
+	for(i = 0; i< channels;i++){
+		newStream->outputBufs[i]->outputBuf = malloc(sizeof(double)*4000);
+		newStream->outputBufs[i]->head = 0;
+		newStream->outputBufs[i]->tail = 0;
+		newStream->outputBufs[i]->headTimestamp = timeInSamples;
+	}
 	
 	while(streams->next != NULL){
 		streams = streams->next;
@@ -77,13 +90,20 @@ void transmitTime(double time){
 	}
 	
 }
+/* SINE WAVE CODE
+	double factor = 48000.0/(3.14159*500);
+	
+				sample = sin(((double)(stream->timestamp+i))/factor)*8388607.0*.05;
+				messageBuf[12+i*stream->channelsPerPacket*3+x*3+2] = sample&0x0000FF;
+				messageBuf[12+i*stream->channelsPerPacket*3+x*3+1] = (sample&0x00FF00)>>8;
+				messageBuf[12+i*stream->channelsPerPacket*3+x*3] = (sample&0xFF0000)>>16;
+*/
 
-uint64_t music = 0;
 
-void transmitRTP(struct RTCPstream *stream,uint32_t audioBuffer[])
+
+
+void transmitRTP(struct RTCPstream *stream)
 {
-
- 
 	//RTP header
 	messageBuf[0]=128; //Version, padding, CC & M
 	messageBuf[1]=99; //Stream type (from RTP map)?
@@ -100,34 +120,19 @@ void transmitRTP(struct RTCPstream *stream,uint32_t audioBuffer[])
 	messageBuf[10]=(stream->csrc & 0x00FF0000)>>16;
 	messageBuf[11]=(stream->csrc & 0xFF000000)>>24;
 
-	double factor = 48000.0/(3.14159*500);
-	
-	int32_t sample;
+	uint32_t sample;
 	
 	for(i = 0;i<stream->samplesPerPacket;i++)
 	{
-		for(x = 0;x<stream->channelsPerPacket;x++){
-			if(x == 2){
-				messageBuf[12+i*stream->channelsPerPacket*3+x*3+2] = 0;
-				messageBuf[12+i*stream->channelsPerPacket*3+x*3+1] = 0;
-				messageBuf[12+i*stream->channelsPerPacket*3+x*3] = 0;					
-			}else if(x ==1){
-				sample = audioBuffer[music++]*16;
-				messageBuf[12+i*stream->channelsPerPacket*3+x*3+2] = (sample&0x0000FF)>>0;
-				messageBuf[12+i*stream->channelsPerPacket*3+x*3+1] = (sample&0x00FF00)>>8;
-				messageBuf[12+i*stream->channelsPerPacket*3+x*3+0] = (sample&0xFF0000)>>16;
-				if(music == 10984320)
-					music = 0;
-			}else {
-				sample = sin(((double)(stream->timestamp+i))/factor)*8388607.0*.05;
-				messageBuf[12+i*stream->channelsPerPacket*3+x*3+2] = sample&0x0000FF;
-				messageBuf[12+i*stream->channelsPerPacket*3+x*3+1] = (sample&0x00FF00)>>8;
-				messageBuf[12+i*stream->channelsPerPacket*3+x*3] = (sample&0xFF0000)>>16;
-			}
+		for(x = 0;x<stream->channels;x++){
+			sample = getSampleFromBuffer(stream->outputBufs[x],i+stream->timestamp)*8388607;
+			messageBuf[12+i*stream->channels*3+x*3+2] = sample&0x0000FF;
+			messageBuf[12+i*stream->channels*3+x*3+1] = (sample&0x00FF00)>>8;
+			messageBuf[12+i*stream->channels*3+x*3] = (sample&0xFF0000)>>16;				
 		}
 	}
 	
-	int messagelen = 12+stream->channelsPerPacket*stream->samplesPerPacket*3;
+	int messagelen = 12+stream->channels*stream->samplesPerPacket*3;
 
 	//send the message
 	if (sendto(s, messageBuf, messagelen, 0, (struct sockaddr *) &si_other, slen)==-1)
@@ -135,4 +140,6 @@ void transmitRTP(struct RTCPstream *stream,uint32_t audioBuffer[])
 		printf("error sending %d\n", messagelen);
 	}
 
+	stream->sequenceNum++;
+	stream->timestamp += 48;
 }

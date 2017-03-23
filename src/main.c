@@ -10,20 +10,18 @@
 #include <sys/time.h>
 
 int32_t audioBuffer[14400000];
+
 int main(void)
 {
+	uint64_t timeInSamples;
+	
 	void initializeAudioStreaming();
 
 //	srand(time(NULL));   // should only be called once
 //	int r = rand();      // returns a pseudo-random integer between 0 and RAND_MAX
 	
 	loadWave("/test.wav",audioBuffer);
-	
-	
-//	struct SDPmessage msg;
-	//msg.sessionId = 12345;
-	//msg.sessionVersion = 12345;
-	//msg.sessionName = "Testing2";
+
 	myIP[0] = 192;
 	myIP[1] = 168;
 	myIP[2] = 0;
@@ -37,31 +35,36 @@ int main(void)
 	clockMaster[5]=0x0b;
 	clockMaster[6]=0x2f;
 	clockMaster[7]=0x10;
+	
+	struct timeval currenttime;
+
+	newAudioStream("Testing2",8,12345,12345);
 
 	
-	//Add some network streams here
 	
+	struct audioStreams *currentStream;
 	
+	currentStream = &AudioStreams;
 	
-	double timeInSamples = ((double)(currenttime.tv_sec+((double)currenttime.tv_usec)/1000000))*48000;
+	while(currentStream != NULL){			
+		transmitSAP(currentStream->current); //Need to do periodically
+		currentStream = currentStream->next;
+	}
 
-	newAudioStream()
+	while(1)
+	{
+		gettimeofday(&currenttime, NULL);
+		timeInSamples = ((double)(currenttime.tv_sec+((double)currenttime.tv_usec)/1000000))*sampleRate;
 
-	transmitSAP(&msg); //Need to do periodically
-
-   while(1)
-   {
-	   gettimeofday(&currenttime, NULL);
-	   
-	   timeInSamples = ((double)(currenttime.tv_sec+((double)currenttime.tv_usec)/1000000))*48000;
-	   
-		while((timeInSamples+48) > stream.timestamp){
-			transmitRTP(&stream, audioBuffer);
-			stream.sequenceNum++;
-			stream.timestamp += 48;
+		currentStream = &AudioStreams;
+		
+		while(currentStream != NULL){			
+			while((timeInSamples+48) > currentStream->current->timestamp){
+				transmitRTP( currentStream->current);
+			}	
+			currentStream = currentStream->next;
 		}
-
-   }
+	}
 
     return 0;
 }

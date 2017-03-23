@@ -4,7 +4,6 @@
 #include "SAP.h"
 #include<stdio.h> //printf
 #include<string.h> //memset
-#include<stdlib.h> //exit(0);
 #include<arpa/inet.h>
 #include<sys/socket.h>
 #include <stdlib.h>
@@ -21,15 +20,15 @@ uint8_t map = 98;
 //Support for unicast
 //Broadcast to unique IPs
 struct RTCPstream{
-	uint16_t sequenceNum; //Incremented per packet, starts randomly
+	uint32_t sequenceNum; //Incremented per packet, starts randomly
 	uint32_t timestamp; //Incremented in samples per packet, units are samples. Time is PTP converted to samples + mediaclk offset
 	uint64_t offset; //In samples relative to PTP clock
 	uint32_t csrc; //Should be random
-	uint16_t samplesPerPacket;
+	uint32_t samplesPerPacket;
 	uint8_t channels; //8 or less for compatibility with Dante
 	char *name;
 	struct OutputStreamBuf *outputBufs; //array of output buffers
-	struct SDPmessage *SDPmessage;
+	struct SDPmessage *SDP;
 };
 
 struct audioStreams{
@@ -38,7 +37,7 @@ struct audioStreams{
 } AudioStreams ;
 
 void initializeAudioStreaming();
-void newAudioStream(char *name, uint8_t channels, uint64_t sessionID, uint64_t sessionVersion)
+void newAudioStream(char *name, uint8_t channels, uint64_t sessionID, uint64_t sessionVersion);
 
 void transmitRTP(struct RTCPstream *stream);
 void initRTPSocket();

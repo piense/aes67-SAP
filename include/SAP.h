@@ -8,8 +8,7 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <inttypes.h>
- 
-
+#include "RTP.h"
 
 enum audioFormat_t {L24};
 
@@ -27,4 +26,4 @@ struct SDPmessage {
 	uint64_t mediaClk;
 } ;
 
-void transmitSAP(struct SDPmessage *message);
+void transmitSAP(struct RTCPstream *message);
