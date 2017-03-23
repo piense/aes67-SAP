@@ -4,7 +4,6 @@
 #include <unistd.h>
 
 #define SERVER "239.69.128.164"
-//#define SERVER "239.255.255.255"
 #define BUFLEN 1500  //Max length of buffer
 #define PORT 5004   //The port on which to send data
 
@@ -13,11 +12,48 @@ int s, i, x, slen=sizeof(si_other);
 char buf[BUFLEN];
 char messageBuf[BUFLEN];
 
+void initializeAudioStreaming(){
+	initRTPSocket(); //Should be per stream since they should all have unique IPs
+	AudioStreams.current = NULL;
+	AudioStreams.next = NULL;
+}
+
+void newAudioStream(char *name, uint8_t channels, uint64_t sessionID, uint64_t sessionVersion){
+	struct RTCPstream *newStream = malloc(sizeof(struct RTCPstream));
+	struct audioStreams *streams = &AudioStreams;
+	
+	newStream.timestamp = timeInSamples;
+	newStream.csrc = 1234;
+	newStream.samplesPerPacket = 48;
+	newStream.channelsPerPacket = channels;
+	newStream.name = name;
+	
+	newStream.SDPmessage = malloc(sizof(struct SDPmessage));
+	newStream.SDPmessage.sessionId = sessionId;
+	newStream.SDPmessage.sessionVersion = sessionVersion;
+	newStream.SDPmessage.channelStart = 1;
+	newStream.SDPmessage.channelEnd = channels;
+	newStream.SDPmessage.map = map++;
+	
+	
+	while(streams->next != NULL){
+		streams = streams->next;
+	}
+	
+	struct audioStreams *newStreamLink = malloc(sizeof(struct audioStreams));
+	newStreamLink->current = newStream;
+	newStreamLink->next = NULL;
+	
+	streams->next = newStreamLink;
+}
+
+//Should return errors if something failed to initialize
 void initRTPSocket()
 {
 	if ( (s=socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) == -1)
     {
-       // die("socket");
+		printf("Failed to open socket\n");
+		exit(1);
     }
  
     memset((char *) &si_other, 0, sizeof(si_other));

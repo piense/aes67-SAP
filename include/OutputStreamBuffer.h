@@ -12,4 +12,4 @@ struct OutputStreamBuf
 	uint16_t tail;
 	uint64_t headTimestamp; //samples since epoch.
 	uint8_t *outputBuf;
-}
+};
