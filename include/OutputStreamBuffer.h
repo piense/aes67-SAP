@@ -3,11 +3,12 @@
 #include <stdlib.h>
 #include <stdint.h>
 
+//TODO: no need for 64 bit buffer variables
 struct OutputStreamBuf
 {
-	uint16_t outputBufSize;	 //Could be global, but we'll leave it per stream for now
-	uint16_t head;
-	uint16_t tail;
+	uint64_t outputBufSize;	 //Could be global, but we'll leave it per stream for now
+	uint64_t head;
+	uint64_t tail;
 	uint64_t headTimestamp; //samples since epoch.
 	double *outputBuf;
 };

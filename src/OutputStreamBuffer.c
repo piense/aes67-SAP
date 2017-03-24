@@ -1,4 +1,6 @@
-#include "OutputStreamBuf.h"
+#include "OutputStreamBuffer.h"
+
+#include <stdio.h>
 
 double getSampleFromBuffer(struct OutputStreamBuf *buf, uint64_t time){
 	
@@ -12,13 +14,13 @@ double getSampleFromBuffer(struct OutputStreamBuf *buf, uint64_t time){
 		printf("Buffer error 2.\n");
 		return 0;
 	}
-	
-	return buf->outputBuf[(time - headTimestamp + head)%(buf->outputBufSize];
+	return buf->outputBuf[(time - buf->headTimestamp + buf->head)%(buf->outputBufSize)];
 }
 
 void advanceBuffer(struct OutputStreamBuf *buf, uint64_t samples){
 	//TODO make this thread safe
-	buf->head = (buf->head+samples) % outputBufSize;
+	buf->headTimestamp += samples;
+	buf->head = (buf->head+samples) % buf->outputBufSize;
 }
 
 void clearSamplesInBuffer(struct OutputStreamBuf *buf, uint64_t startTime, uint64_t sampleCount){

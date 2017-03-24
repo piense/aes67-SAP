@@ -15,12 +15,13 @@ int main(void)
 {
 	uint64_t timeInSamples;
 	
-	void initializeAudioStreaming();
+	initializeAudioStreaming();
 
 //	srand(time(NULL));   // should only be called once
 //	int r = rand();      // returns a pseudo-random integer between 0 and RAND_MAX
 	
 	loadWave("/test.wav",audioBuffer);
+	printf("Loaded wave file.\n");
 
 	myIP[0] = 192;
 	myIP[1] = 168;
@@ -40,13 +41,15 @@ int main(void)
 
 	newAudioStream("Testing2",8,12345,12345);
 
+	int i;
+	for(i = 0;i<10984320;i++)
+	{
+		AudioStreams->current->outputBufs[0].outputBuf[i] = (((double)audioBuffer[i])/32767)*.01;
+	}
 	
+	struct audioStreams *currentStream = AudioStreams;
 	
-	struct audioStreams *currentStream;
-	
-	currentStream = &AudioStreams;
-	
-	while(currentStream != NULL){			
+	while(currentStream != NULL){
 		transmitSAP(currentStream->current); //Need to do periodically
 		currentStream = currentStream->next;
 	}
@@ -54,12 +57,12 @@ int main(void)
 	while(1)
 	{
 		gettimeofday(&currenttime, NULL);
-		timeInSamples = ((double)(currenttime.tv_sec+((double)currenttime.tv_usec)/1000000))*sampleRate;
+		timeInSamples = ((double)(currenttime.tv_sec+((double)currenttime.tv_usec)/1000000))*48000;
 
-		currentStream = &AudioStreams;
+		currentStream = AudioStreams;
 		
-		while(currentStream != NULL){			
-			while((timeInSamples+48) > currentStream->current->timestamp){
+		while(currentStream != NULL){		
+			while((timeInSamples+96) > currentStream->current->timestamp){
 				transmitRTP( currentStream->current);
 			}	
 			currentStream = currentStream->next;

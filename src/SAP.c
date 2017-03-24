@@ -52,12 +52,12 @@ void transmitSAP(struct RTCPstream *message){
 	"a=ptime:1\r\n"
 	"a=ts-refclk:ptp=IEEE1588-2008:%02X-%02X-%02X-%02X-%02X-%02X-%02X-%02X:domain-nmbr=0\r\n"
 	"a=mediaclk:direct=%"PRId64"\r\n",
-	message->SDP->sessionId, message->SDP->sessionVersion,
+	message->sessionId, message->sessionVersion,
 	myIP[0],myIP[1],myIP[2],myIP[3],
 	message->name,
-	message->SDP->map,
-	message->SDP->channelStart, message->SDP->channelEnd,
-	message->SDP->map, sampleRate,message->SDP->channelEnd-message->SDP->channelStart + 1,
+	message->map,
+	message->channelStart, message->channelEnd,
+	message->map, sampleRate,message->channelEnd-message->channelStart + 1,
 	clockMaster[0],clockMaster[1],clockMaster[2],clockMaster[3],
 	clockMaster[4],clockMaster[5],clockMaster[6],clockMaster[7],
 	message->offset
@@ -66,8 +66,7 @@ void transmitSAP(struct RTCPstream *message){
 	int messagelen = strlen(&messageBuf[8])+8;
 	
 	messageBuf[23] = 0; //trick to keep the null character out of the string
-	
-	printf("%d\r\n",messagelen);
+	printf("Sending SAP message for %s\n",message->name);
 		 
 	//send the message
 	if (sendto(s, messageBuf, messagelen, 0 , (struct sockaddr *) &si_other, slen)==-1)

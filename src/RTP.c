@@ -2,6 +2,8 @@
 #include "RTP.h"
 
 #include <unistd.h>
+#include <time.h>
+#include <sys/time.h>
 
 #define SERVER "239.69.128.164"
 #define BUFLEN 1500  //Max length of buffer
@@ -11,53 +13,66 @@ struct sockaddr_in si_other;
 int s, i, x, slen=sizeof(si_other);
 char buf[BUFLEN];
 char messageBuf[BUFLEN];
+struct audioStreams *AudioStreams;
+
+//Not the right place for some of these but it'll work for now
+uint32_t sampleRate = 48000; //Samples per second
+uint64_t networkLatency = 144; //In samples, I'm thinking ideally it should be 3x samples per packet(?)
+uint8_t myIP[4];
+uint8_t clockMaster[8];
+uint8_t map = 98;
 
 void initializeAudioStreaming(){
 	initRTPSocket(); //Should be per stream since they should all have unique IPs
-	AudioStreams.current = NULL;
-	AudioStreams.next = NULL;
+	AudioStreams = NULL;
 }
 
-void newAudioStream(char *name, uint8_t channels, uint64_t sessionID, uint64_t sessionVersion){
+void newAudioStream(char *name, uint8_t channels, uint64_t sessionId, uint64_t sessionVersion){
 	struct RTCPstream *newStream = malloc(sizeof(struct RTCPstream));
-	struct audioStreams *streams = &AudioStreams;
 	
 	//TODO: Find a better way to set the starting time stamp
 	struct timeval currenttime;
-	uint64_t timeInSamples = ((double)(currenttime.tv_sec+((double)currenttime.tv_usec)/1000000))*sampleRate;
+	gettimeofday(&currenttime, NULL);
+	uint64_t timeInSamples = ((double)(currenttime.tv_sec+((double)currenttime.tv_usec)/1000000))*48000;
+	printf("sample time: %d\n",timeInSamples);
 	
 	newStream->timestamp = timeInSamples;
 	newStream->csrc = 1234;
 	newStream->samplesPerPacket = 48;
-	newStream->channelsPerPacket = channels;
+	newStream->channels = channels;
 	newStream->name = name;
 	newStream->offset = 0;
 	
-	newStream->SDP = malloc(sizof(struct SDPmessage));
-	newStream->SDP.sessionId = sessionId;
-	newStream->SDP.sessionVersion = sessionVersion;
-	newStream->SDP.channelStart = 1;
-	newStream->SDP.channelEnd = channels;
-	newStream->SDP.map = map++;
+	newStream->sessionId = sessionId;
+	newStream->sessionVersion = sessionVersion;
+	newStream->channelStart = 1;
+	newStream->channelEnd = channels;
+	newStream->map = map++;
 	
 	newStream->outputBufs = malloc(sizeof(struct OutputStreamBuf)*channels);
 	int i;
 	for(i = 0; i< channels;i++){
-		newStream->outputBufs[i]->outputBuf = malloc(sizeof(double)*4000);
-		newStream->outputBufs[i]->head = 0;
-		newStream->outputBufs[i]->tail = 0;
-		newStream->outputBufs[i]->headTimestamp = timeInSamples;
-	}
-	
-	while(streams->next != NULL){
-		streams = streams->next;
+		newStream->outputBufs[i].outputBuf = malloc(sizeof(double)*10984320);
+		newStream->outputBufs[i].head = 0;
+		newStream->outputBufs[i].tail = 0;
+		newStream->outputBufs[i].headTimestamp = timeInSamples;
+		newStream->outputBufs[i].outputBufSize = 10984320;//TODO: make reasonable and dynamic
 	}
 	
 	struct audioStreams *newStreamLink = malloc(sizeof(struct audioStreams));
 	newStreamLink->current = newStream;
 	newStreamLink->next = NULL;
 	
-	streams->next = newStreamLink;
+	if(AudioStreams == NULL){	
+		AudioStreams = newStreamLink;
+	}else{
+		struct audioStreams *streams = AudioStreams;
+		while(streams->next != NULL){
+			streams = streams->next;
+		}
+		streams->next = newStreamLink;
+	}
+	
 }
 
 //Should return errors if something failed to initialize
@@ -125,11 +140,15 @@ void transmitRTP(struct RTCPstream *stream)
 	for(i = 0;i<stream->samplesPerPacket;i++)
 	{
 		for(x = 0;x<stream->channels;x++){
-			sample = getSampleFromBuffer(stream->outputBufs[x],i+stream->timestamp)*8388607;
+			sample = getSampleFromBuffer(&stream->outputBufs[x],i+stream->timestamp)*8388607;
 			messageBuf[12+i*stream->channels*3+x*3+2] = sample&0x0000FF;
 			messageBuf[12+i*stream->channels*3+x*3+1] = (sample&0x00FF00)>>8;
 			messageBuf[12+i*stream->channels*3+x*3] = (sample&0xFF0000)>>16;				
 		}
+	}
+	
+	for(x = 0;x<stream->channels;x++){
+		advanceBuffer(&stream->outputBufs[x], stream->samplesPerPacket);
 	}
 	
 	int messagelen = 12+stream->channels*stream->samplesPerPacket*3;
